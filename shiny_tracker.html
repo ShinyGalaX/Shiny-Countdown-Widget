@@ -675,15 +675,16 @@
   }
 
   function logShiny(number) {
-    var name = document.getElementById('pokemonName').value.trim();
-    var entry = name ? name : 'Shiny ' + number;
-    var timestamp = getCurrentTimestamp();
-    logLines.push('#' + number + '  ' + entry + '  [' + timestamp + ' remaining]');
-    renderLog();
-  }
+  var name = document.getElementById('pokemonName').value.trim();
+  var entry = name ? name : 'Shiny ' + number;
+  var timestamp = getCurrentTimestamp();
+  logLines = ['#' + number + '  ' + entry + '  [' + timestamp + '];
+  renderLog();
+}
 
   function unlogLastShiny() {
-    if (logLines.length > 0) { logLines.pop(); renderLog(); }
+   logLines = [];
+   renderLog();
   }
 
   function downloadLog() {
