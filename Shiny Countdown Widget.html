@@ -384,7 +384,7 @@
 
   const POLL_MS = 3000;
 
-  let state = { started: false, startTime: null, caught: 0, done: false, duration: 0, goal: 0 };
+  let state = { started: false, startTime: null, caught: 0, done: false, duration: 0, goal: 0, logLines: [] };
 
   function getGoal() {
     if (state.started) return state.goal || 0;
@@ -623,8 +623,11 @@
 
   function applyState(remote) {
     state = remote;
+    if (!state.logLines) state.logLines = [];
     renderState();
+    renderLog();
     if (state.started && !state.done && !state.paused) startTimerLocal();
+    else if (state.paused) clearInterval(timerId);
   }
 
   function startPolling() {
@@ -682,7 +685,6 @@
 
 
   // ── Log ──
-  var logLines = [];
 
   function getCurrentTimestamp() {
     if (!state.started || !state.startTime) return '??:??:??';
@@ -691,34 +693,34 @@
   }
 
   function renderLog() {
-  var box = document.getElementById('logBox');
-  if (logLines.length === 0) {
-    box.innerHTML = 'No shinies caught yet!';
-    return;
+    var box = document.getElementById('logBox');
+    if (!state.logLines || state.logLines.length === 0) {
+      box.innerHTML = 'No shinies caught yet!';
+      return;
+    }
+    var latest = state.logLines[state.logLines.length - 1];
+    box.innerHTML = '<div class="log-entry">' + latest + '</div>';
   }
-  // Only show the latest entry
-  var latest = logLines[logLines.length - 1];
-  box.innerHTML = '<div class="log-entry">' + latest + '</div>';
-}
 
   function logShiny(number) {
-  var name = document.getElementById('pokemonName').value.trim();
-  var entry = name ? name : 'Shiny ' + number;
-  var timestamp = getCurrentTimestamp();
-  logLines.push('#' + number + '  ' + entry + '  [' + timestamp + ']');
-  renderLog();
-}
+    var name = document.getElementById('pokemonName').value.trim();
+    var entry = name ? name : 'Shiny ' + number;
+    var timestamp = getCurrentTimestamp();
+    if (!state.logLines) state.logLines = [];
+    state.logLines.push('#' + number + '  ' + entry + '  [' + timestamp + ']');
+    renderLog();
+  }
 
   function unlogLastShiny() {
-   if (logLines.length > 0) {
-    logLines.pop();
-    renderLog();
-   }
+    if (state.logLines && state.logLines.length > 0) {
+      state.logLines.pop();
+      renderLog();
+    }
   }
 
   function downloadLog() {
-    if (logLines.length === 0) { alert('No shinies logged yet!'); return; }
-    var text = logLines.join('\n') + '\n';
+    if (!state.logLines || state.logLines.length === 0) { alert('No shinies logged yet!'); return; }
+    var text = state.logLines.join('\n') + '\n';
     var blob = new Blob([text], { type: 'text/plain' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -748,7 +750,7 @@
     if (!sessionKey) { alert('Connect to a session first!'); return; }
     if (!confirm('Reset everything? This clears for both streamers.')) return;
     clearInterval(timerId); alarmPlayed = false;
-    state = { started: false, startTime: null, caught: 0, done: false, duration: getDuration(), goal: getGoal() };
+    state = { started: false, startTime: null, caught: 0, done: false, duration: getDuration(), goal: getGoal(), logLines: [] };
     await pushState(); renderState();
   }
 
