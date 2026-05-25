@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shiny Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1a1a2e;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 24px;
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .widget {
+    position: relative;
+    width: 260px;
+    flex-shrink: 0;
+  }
+
+  .widget svg.border-svg {
+    position: absolute;
+    inset: -2px;
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+    pointer-events: none;
+    overflow: visible;
+    z-index: 2;
+  }
+
+  .tracker {
+    background: rgba(0,0,0,0.6);
+    border-radius: 12px;
+    padding: 10px 24px 12px;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+  }
+
+  #confettiCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .timer {
+    font-weight: 700;
+    font-size: 44px;
+    letter-spacing: -1px;
+    color: #fff;
+    line-height: 1;
+    transition: color 0.8s ease;
+  }
+  .timer.warn   { color: #f97316; }
+  .timer.urgent { color: #ef4444; animation: timerPulse 1s ease-in-out infinite; }
+  @keyframes timerPulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  .label {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    margin-top: 5px;
+    line-height: 1;
+  }
+
+  .count {
+    font-weight: 700;
+    font-size: 32px;
+    letter-spacing: -0.5px;
+    color: #fff;
+    line-height: 1;
+    transition: color 0.05s;
+  }
+  .count.flash { color: #4ade80; }
+  #caughtCount.goal-reached { color: #4ade80; }
+  #caughtCount.goal-exceeded { color: #60a5fa; }
+  .count .sep  { color: rgba(255,255,255,0.2); margin: 0 2px; }
+  .count .goal { font-size: 20px; font-weight: 500; color: rgba(255,255,255,0.3); }
+
+  .progress-track {
+    background: rgba(255,255,255,0.08);
+    border-radius: 99px;
+    height: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #a855f7, #ec4899, #f97316, #facc15, #4ade80, #22d3ee, #818cf8);
+    transition: width 0.6s ease;
+    min-width: 4px;
+  }
+
+  /* CONTROLS */
+  .controls {
+    width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .controls-label {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.2);
+    text-align: center;
+  }
+
+  .row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .row input[type="text"] {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    color: #fff;
+    font-family: 'Outfit', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 10px;
+    outline: none;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .row input[type="text"]::placeholder { color: rgba(255,255,255,0.2); text-transform: none; letter-spacing: 0; }
+  .row input[type="text"]:focus { border-color: rgba(255,255,255,0.35); }
+
+  .row label {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.35);
+    white-space: nowrap;
+  }
+
+  .row input[type="number"] {
+    width: 54px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    color: #fff;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 7px 6px;
+    outline: none;
+    text-align: center;
+    -moz-appearance: textfield;
+  }
+  .row input[type="number"]::-webkit-outer-spin-button,
+  .row input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .row input[type="number"]:focus { border-color: rgba(255,255,255,0.35); }
+
+  .colon {
+    font-size: 16px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.25);
+  }
+  .unit {
+    font-size: 11px;
+    color: rgba(255,255,255,0.25);
+  }
+
+  .row-hint {
+    font-size: 9px;
+    color: rgba(255,255,255,0.18);
+    text-align: center;
+  }
+
+  .btn-action {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    color: rgba(255,255,255,0.7);
+    font-family: 'Outfit', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .btn-action:hover { background: rgba(255,255,255,0.12); }
+
+  .conn-status {
+    font-size: 10px;
+    color: rgba(255,255,255,0.25);
+    text-align: center;
+    min-height: 14px;
+  }
+  .conn-status.live { color: #4ade80; }
+
+  .divider { border: none; border-top: 1px solid rgba(255,255,255,0.07); }
+
+  .btn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .btn-grid button {
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 8px;
+    border-radius: 8px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn-grid button:active { transform: scale(0.97); }
+
+  .btn-shiny { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: #fcd34d; grid-column: 1 / -1; font-size: 15px; padding: 12px; }
+  .btn-start { background: rgba(16,185,129,0.12);  border-color: rgba(16,185,129,0.35);  color: #6ee7b7; }
+  .btn-undo  { background: rgba(147,51,234,0.12);  border-color: rgba(147,51,234,0.35);  color: #c084fc; }
+  .btn-reset { background: rgba(120,113,108,0.10); border-color: rgba(120,113,108,0.3);  color: #a8a29e; grid-column: 1 / -1; }
+
+  .btn-shiny:hover { background: rgba(245,158,11,0.22); }
+  .btn-start:hover { background: rgba(16,185,129,0.22); }
+  .btn-undo:hover  { background: rgba(147,51,234,0.22); }
+  .btn-reset:hover { background: rgba(120,113,108,0.18); }
+
+  /* Log section */
+  .row input[type="text"].pokemon-input {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    color: #fff;
+    font-family: 'Outfit', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 10px;
+    outline: none;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .row input[type="text"].pokemon-input::placeholder { color: rgba(255,255,255,0.2); }
+  .row input[type="text"].pokemon-input:focus { border-color: rgba(255,255,255,0.35); }
+  .log-box {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 8px 10px;
+    max-height: 120px;
+    overflow-y: auto;
+    font-size: 10px;
+    color: rgba(255,255,255,0.45);
+    line-height: 1.6;
+    font-family: monospace;
+    word-break: break-word;
+  }
+  .log-box:empty::before {
+    content: 'log will appear here...';
+    color: rgba(255,255,255,0.15);
+  }
+  .log-entry { color: rgba(255,255,255,0.55); }
+  .btn-download {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    color: rgba(255,255,255,0.6);
+    font-family: 'Outfit', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 7px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+    width: 100%;
+  }
+  .btn-download:hover { background: rgba(255,255,255,0.12); }
+</style>
+</head>
+<body>
+
+<div class="widget" id="widget">
+  <svg class="border-svg" id="borderSvg" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="rainbowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stop-color="#a855f7"/>
+        <stop offset="16%"  stop-color="#ec4899"/>
+        <stop offset="33%"  stop-color="#f97316"/>
+        <stop offset="50%"  stop-color="#facc15"/>
+        <stop offset="66%"  stop-color="#4ade80"/>
+        <stop offset="83%"  stop-color="#22d3ee"/>
+        <stop offset="100%" stop-color="#a855f7"/>
+      </linearGradient>
+    </defs>
+    <rect id="borderRect" rx="12" ry="12" fill="none" stroke="url(#rainbowGrad)" stroke-width="3"/>
+  </svg>
+  <div class="tracker">
+    <canvas id="confettiCanvas"></canvas>
+    <div class="timer" id="timerDisplay">00:00:00</div>
+    <div class="label">shinies caught</div>
+    <div class="count" id="countEl">
+      <span id="caughtCount">0</span><span class="sep">/</span><span class="goal" id="goalDisplay">0</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="controls-label">controls &mdash; crop out in obs</div>
+
+  <!-- Session -->
+  <div class="row">
+    <input type="text" id="sessionInput" placeholder="Session code" maxlength="16" />
+    <button class="btn-action" onclick="doConnect()">connect</button>
+  </div>
+  <div class="conn-status" id="connStatus">enter a code and connect</div>
+
+  <hr class="divider">
+
+  <!-- Timer duration -->
+  <div class="row">
+    <label>Duration:</label>
+    <input type="number" id="inputHours" value="0" min="0" max="99" oninput="liveUpdateTimer()" />
+    <span class="unit">h</span>
+    <span class="colon">:</span>
+    <input type="number" id="inputMins" value="0" min="0" max="59" oninput="liveUpdateTimer()" />
+    <span class="unit">m</span>
+  </div>
+  <div class="row">
+    <label>Goal:</label>
+    <input type="number" id="inputGoal" value="0" min="0" max="9999" oninput="liveUpdateGoal()" />
+    <span class="unit">shinies</span>
+  </div>
+  <div class="row-hint">set before starting &mdash; syncs to both streamers</div>
+
+
+
+  <hr class="divider">
+
+  <!-- Shiny log -->
+  <div class="row">
+    <input type="text" class="pokemon-input" id="pokemonName" placeholder="Pok&#233;mon name (optional)" maxlength="40" />
+  </div>
+  <div class="log-box" id="logBox"></div>
+  <button class="btn-download" onclick="downloadLog()">&#8681; download log as .txt</button>
+
+  <hr class="divider">
+
+  <div class="btn-grid">
+    <button class="btn-shiny" onclick="doAddShiny()">&#9733; got a shiny!</button>
+    <button class="btn-start" onclick="doStart()">&#9654; start timer</button>
+    <button class="btn-undo"  onclick="doUndo()">&#8617; undo last</button>
+    <button class="btn-reset" onclick="doReset()">&#8635; reset everything</button>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp }                        from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, set, get, onValue }  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+  // ── PASTE YOUR FIREBASE CONFIG HERE ──────────────────────────────────────
+  const firebaseConfig = {
+    apiKey:            "AIzaSyCAebHXah4psFN_YB25EZ53yodPhWeNBY8",
+    authDomain:        "shiny-countdown-widget.firebaseapp.com",
+    databaseURL:       "https://shiny-countdown-widget-default-rtdb.firebaseio.com",
+    projectId:         "shiny-countdown-widget",
+    storageBucket:     "shiny-countdown-widget.firebasestorage.app",
+    messagingSenderId: "727138403176",
+    appId:             "1:727138403176:web:def52d60e486e18a8b0cdd"
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
+
+  const POLL_MS = 3000;
+
+  let state = { started: false, startTime: null, caught: 0, done: false, duration: 0, goal: 0 };
+
+  function getGoal() {
+    if (state.started) return state.goal || 0;
+    return parseInt(document.getElementById('inputGoal').value) || 0;
+  }
+  let sessionKey  = null;
+  let pollId      = null;
+  let timerId     = null;
+  let alarmPlayed = false;
+
+  // Derived from inputs
+  function getDuration() {
+    const h = parseInt(document.getElementById('inputHours').value) || 0;
+    const m = parseInt(document.getElementById('inputMins').value)  || 0;
+    return Math.max(60000, (h * 60 + m) * 60000);
+  }
+  function getWarnPct() { return 0.20; }
+
+  // Auto-connect from URL
+  const autoSession = new URLSearchParams(window.location.search).get('session');
+  if (autoSession) {
+    document.getElementById('sessionInput').value = autoSession;
+    setTimeout(doConnect, 200);
+  }
+
+  // Border
+  function fitBorder() {
+    const w    = document.getElementById('widget');
+    const svg  = document.getElementById('borderSvg');
+    const rect = document.getElementById('borderRect');
+    const W = w.offsetWidth + 4, H = w.offsetHeight + 4;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    rect.setAttribute('x', '1.5'); rect.setAttribute('y', '1.5');
+    rect.setAttribute('width', W - 3); rect.setAttribute('height', H - 3);
+  }
+  const stops = document.querySelectorAll('#rainbowGrad stop');
+  const baseHues = [270, 330, 25, 50, 142, 186, 270];
+  let bframe = 0;
+  function animateBorder() {
+    bframe++;
+    const shift = (bframe * 1.2) % 360;
+    stops.forEach(function(s, i) { s.setAttribute('stop-color', 'hsl(' + ((baseHues[i] + shift) % 360) + ',90%,65%)'); });
+    requestAnimationFrame(animateBorder);
+  }
+  window.addEventListener('load', function() { fitBorder(); animateBorder(); });
+  window.addEventListener('resize', fitBorder);
+  setTimeout(fitBorder, 500);
+
+  // Confetti
+  const canvas = document.getElementById('confettiCanvas');
+  const ctx    = canvas.getContext('2d');
+  let particles = [];
+  function resizeCanvas() {
+    canvas.width  = canvas.parentElement.offsetWidth;
+    canvas.height = canvas.parentElement.offsetHeight;
+  }
+  window.addEventListener('load', resizeCanvas);
+  window.addEventListener('resize', resizeCanvas);
+  setTimeout(resizeCanvas, 300);
+
+  function spawnConfetti() {
+    resizeCanvas();
+    var colors = ['#a855f7','#ec4899','#f97316','#facc15','#4ade80','#22d3ee','#fff'];
+    for (var i = 0; i < 60; i++) {
+      particles.push({
+        x: canvas.width/2, y: canvas.height/2,
+        vx: (Math.random()-0.5)*5, vy: (Math.random()-0.8)*3,
+        size: Math.random()*5+3,
+        color: colors[Math.floor(Math.random()*colors.length)],
+        rot: Math.random()*360, rotV: (Math.random()-0.5)*4,
+        alpha: 1, shape: Math.random()>0.5?'rect':'circle'
+      });
+    }
+    if (!confettiRunning) runConfetti();
+  }
+  var confettiRunning = false;
+  function runConfetti() {
+    confettiRunning = true;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(function(p) {
+      p.x+=p.vx; p.y+=p.vy; p.vy+=0.04; p.rot+=p.rotV; p.alpha-=0.008;
+      ctx.save(); ctx.globalAlpha=Math.max(0,p.alpha);
+      ctx.translate(p.x,p.y); ctx.rotate(p.rot*Math.PI/180);
+      ctx.fillStyle=p.color;
+      if (p.shape==='rect') ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6);
+      else { ctx.beginPath(); ctx.arc(0,0,p.size/2,0,Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    });
+    particles = particles.filter(function(p){ return p.alpha>0 && p.y<canvas.height+20; });
+    if (particles.length>0) requestAnimationFrame(runConfetti);
+    else { confettiRunning=false; ctx.clearRect(0,0,canvas.width,canvas.height); }
+  }
+
+  function flashCount() {
+    var el = document.getElementById('countEl');
+    el.classList.add('flash');
+    setTimeout(function(){ el.classList.remove('flash'); }, 600);
+  }
+
+  function playAlarm() {
+    try {
+      var ac = new (window.AudioContext||window.webkitAudioContext)();
+      function beep(t,freq,dur) {
+        var osc=ac.createOscillator(), g=ac.createGain();
+        osc.connect(g); g.connect(ac.destination);
+        osc.frequency.value=freq; osc.type='sine';
+        g.gain.setValueAtTime(0.4,t);
+        g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+        osc.start(t); osc.stop(t+dur);
+      }
+      for (var r=0; r<4; r++) {
+        var o = r * 1.3;
+        beep(ac.currentTime+o+0.0,  880, 0.25);
+        beep(ac.currentTime+o+0.3,  880, 0.25);
+        beep(ac.currentTime+o+0.6, 1046, 0.5);
+      }
+    } catch(e) {}
+  }
+
+
+  function playGoalSound() {
+    try {
+      var ac = new (window.AudioContext||window.webkitAudioContext)();
+      function note(t,freq,dur) {
+        var osc=ac.createOscillator(), g=ac.createGain();
+        osc.connect(g); g.connect(ac.destination);
+        osc.frequency.value=freq; osc.type='sine';
+        g.gain.setValueAtTime(0.35,t);
+        g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+        osc.start(t); osc.stop(t+dur);
+      }
+      // ascending happy arpeggio
+      note(ac.currentTime+0.00, 523, 0.15);
+      note(ac.currentTime+0.12, 659, 0.15);
+      note(ac.currentTime+0.24, 784, 0.15);
+      note(ac.currentTime+0.36, 1047,0.4);
+      note(ac.currentTime+0.52, 1047,0.15);
+      note(ac.currentTime+0.64, 1175,0.5);
+    } catch(e) {}
+  }
+
+  function formatTime(ms) {
+    var h=Math.floor(ms/3600000), m=Math.floor((ms%3600000)/60000), s=Math.floor((ms%60000)/1000);
+    return pad(h)+':'+pad(m)+':'+pad(s);
+  }
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  function setTimerColour(remaining, duration) {
+    var el = document.getElementById('timerDisplay');
+    el.classList.remove('warn','urgent');
+    if (remaining <= 0) el.classList.add('urgent');
+    else if (remaining / duration <= getWarnPct()) el.classList.add('warn');
+  }
+
+  function liveUpdateTimer() {
+    if (state.started) return; // don't override a running timer
+    var h = parseInt(document.getElementById('inputHours').value) || 0;
+    var m = parseInt(document.getElementById('inputMins').value)  || 0;
+    var ms = (h * 60 + m) * 60000;
+    document.getElementById('timerDisplay').textContent = formatTime(ms);
+    document.getElementById('timerDisplay').classList.remove('warn','urgent');
+  }
+
+    function liveUpdateGoal() {
+    var g = parseInt(document.getElementById('inputGoal').value) || 0;
+    document.getElementById('goalDisplay').textContent = g;
+    var caught = parseInt(document.getElementById('caughtCount').textContent) || 0;
+    document.getElementById('progressFill').style.width = (g > 0 ? Math.min(100,(caught/g)*100) : 0)+'%';
+    var numEl = document.getElementById('caughtCount');
+    numEl.classList.remove('goal-reached','goal-exceeded');
+    if (caught > g)       numEl.classList.add('goal-exceeded');
+    else if (caught === g) numEl.classList.add('goal-reached');
+  }
+
+    function renderState() {
+    var duration = state.duration || getDuration();
+    var prevCaught = parseInt(document.getElementById('caughtCount').textContent) || 0;
+    var caught = parseInt(state.caught) || 0;
+    document.getElementById('caughtCount').textContent = caught;
+    var goal = getGoal();
+    document.getElementById('goalDisplay').textContent = goal;
+    document.getElementById('progressFill').style.width = (goal > 0 ? Math.min(100,(caught/goal)*100) : 0)+'%';
+    // Colour the number
+    var numEl = document.getElementById('caughtCount');
+    numEl.classList.remove('goal-reached','goal-exceeded');
+    if (caught > goal)       numEl.classList.add('goal-exceeded');
+    else if (caught === goal) numEl.classList.add('goal-reached');
+    // Play goal sound when exactly hitting the goal
+    if (caught === goal && prevCaught < goal) playGoalSound();
+    if (!state.started) {
+      var displayDuration = state.duration || getDuration();
+      document.getElementById('timerDisplay').textContent = formatTime(displayDuration);
+      document.getElementById('timerDisplay').classList.remove('warn','urgent');
+    }
+    if (state.done) {
+      document.getElementById('timerDisplay').textContent = '00:00:00';
+      setTimerColour(0, duration);
+    }
+    // Reflect saved duration back into inputs if loaded from remote
+    if (state.duration) {
+      var totalMins = Math.floor(state.duration / 60000);
+      document.getElementById('inputHours').value = Math.floor(totalMins/60);
+      document.getElementById('inputMins').value  = totalMins % 60;
+    }
+    setTimeout(fitBorder, 50);
+  }
+
+  function startTimerLocal() {
+    clearInterval(timerId);
+    alarmPlayed = false;
+    timerId = setInterval(function() {
+      var duration  = state.duration || getDuration();
+      var remaining = Math.max(0, duration - (Date.now() - state.startTime));
+      document.getElementById('timerDisplay').textContent = formatTime(remaining);
+      setTimerColour(remaining, duration);
+      if (remaining === 0 && !state.done) {
+        state.done = true;
+        if (!alarmPlayed) { alarmPlayed = true; playAlarm(); }
+        pushState(); clearInterval(timerId);
+      }
+    }, 1000);
+  }
+
+  async function pushState() {
+    if (!sessionKey) return;
+    try { await set(ref(db, sessionKey), state); } catch(e) { console.error('pushState error', e); }
+  }
+
+  async function loadRemoteState() {
+    if (!sessionKey) return;
+    try {
+      var snap = await get(ref(db, sessionKey));
+      if (snap.exists()) applyState(snap.val());
+    } catch(e) { console.error('loadRemoteState error', e); }
+  }
+
+  function applyState(remote) {
+    state = remote;
+    renderState();
+    if (state.started && !state.done) startTimerLocal();
+  }
+
+  function startPolling() {
+    if (pollId) { pollId(); pollId = null; } // unsubscribe previous listener
+    pollId = onValue(ref(db, sessionKey), function(snap) {
+      if (snap.exists()) {
+        var remote = snap.val();
+        if (JSON.stringify(remote) !== JSON.stringify(state)) applyState(remote);
+      }
+    }, function(e) { console.error('onValue error', e); });
+  }
+
+  function doConnect() {
+    var code = document.getElementById('sessionInput').value.trim().toUpperCase();
+    if (!code) return;
+    sessionKey = 'shiny_' + code;
+    var el = document.getElementById('connStatus');
+    el.textContent = 'connecting...'; el.className = 'conn-status';
+    loadRemoteState().then(function() {
+      el.textContent = '● connected: ' + code;
+      el.className = 'conn-status live';
+    });
+    startPolling();
+  }
+
+  async function doStart() {
+    if (!sessionKey) { alert('Connect to a session first!'); return; }
+    if (state.started) { alert('Timer is already running!'); return; }
+    var lockedGoal = parseInt(document.getElementById('inputGoal').value) || 0;
+    state.goal     = lockedGoal;       // lock in BEFORE setting started
+    state.started  = true;
+    state.startTime = Date.now();
+    state.done     = false;
+    state.duration = getDuration();
+    await pushState(); renderState(); startTimerLocal();
+  }
+
+
+  // ── Log ──
+  var logLines = [];
+
+  function getCurrentTimestamp() {
+    if (!state.started || !state.startTime) return '??:??:??';
+    var remaining = Math.max(0, (state.duration || getDuration()) - (Date.now() - state.startTime));
+    return formatTime(remaining);
+  }
+
+  function renderLog() {
+  var box = document.getElementById('logBox');
+  if (logLines.length === 0) {
+    box.innerHTML = '';
+    return;
+  }
+  // Only show the latest entry
+  var latest = logLines[logLines.length - 1];
+  box.innerHTML = '<div class="log-entry">' + latest + '</div>';
+}
+
+  function logShiny(number) {
+  var name = document.getElementById('pokemonName').value.trim();
+  var entry = name ? name : 'Shiny ' + number;
+  var timestamp = getCurrentTimestamp();
+  logLines = ['#' + number + '  ' + entry + '  [' + timestamp + ']'];
+  renderLog();
+}
+
+  function unlogLastShiny() {
+   if (logLines.length > 0) {
+    logLines.pop();
+    renderLog();
+   }
+  }
+
+  function downloadLog() {
+    if (logLines.length === 0) { alert('No shinies logged yet!'); return; }
+    var text = logLines.join('\n') + '\n';
+    var blob = new Blob([text], { type: 'text/plain' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'shiny_log.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function doAddShiny() {
+    if (!sessionKey) { alert('Connect to a session first!'); return; }
+    state.caught++;
+    flashCount(); spawnConfetti();
+    logShiny(state.caught);
+    document.getElementById('pokemonName').value = '';
+    await pushState(); renderState();
+  }
+
+  async function doUndo() {
+    if (!sessionKey) { alert('Connect to a session first!'); return; }
+    if (state.caught <= 0) return;
+    state.caught--;
+    unlogLastShiny();
+    await pushState(); renderState();
+  }
+
+  async function doReset() {
+    if (!sessionKey) { alert('Connect to a session first!'); return; }
+    if (!confirm('Reset everything? This clears for both streamers.')) return;
+    clearInterval(timerId); alarmPlayed = false;
+    state = { started: false, startTime: null, caught: 0, done: false, duration: getDuration(), goal: getGoal() };
+    await pushState(); renderState();
+  }
+</script>
+</body>
+</html>
