@@ -667,12 +667,15 @@
   }
 
   function renderLog() {
-    var box = document.getElementById('logBox');
-    box.innerHTML = logLines.map(function(l) {
-      return '<div class="log-entry">' + l + '</div>';
-    }).join('');
-    box.scrollTop = box.scrollHeight;
+  var box = document.getElementById('logBox');
+  if (logLines.length === 0) {
+    box.innerHTML = '';
+    return;
   }
+  // Only show the latest entry
+  var latest = logLines[logLines.length - 1];
+  box.innerHTML = '<div class="log-entry">' + latest + '</div>';
+}
 
   function logShiny(number) {
   var name = document.getElementById('pokemonName').value.trim();
@@ -683,8 +686,10 @@
 }
 
   function unlogLastShiny() {
-   logLines = [];
-   renderLog();
+   if (logLines.length > 0) {
+    logLines.pop();
+    renderLog();
+   }
   }
 
   function downloadLog() {
